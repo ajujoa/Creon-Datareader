@@ -17,6 +17,17 @@ from pandas_to_pyqt_table import PandasModel
 from creon_datareader_ui import Ui_MainWindow
 from utils import is_market_open, available_latest_date, preformat_cjk
 
+#############################
+from pykrx import stock
+import datetime
+from exchange_calendars import get_calendar
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning) # FutureWarning 제거
+
+
+#############################
+
 # .ui 파일에서 직접 클래스 생성하는 경우 주석 해제
 # Ui_MainWindow = uic.loadUiType("creon_datareader.ui")[0]
 
@@ -81,7 +92,39 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def connect_code_list_view(self):
         # 서버 종목 정보 가져와서 dataframe으로 저장
-        sv_code_list = self.objCodeMgr.get_code_list(1) + self.objCodeMgr.get_code_list(2)
+        #sv_code_list = self.objCodeMgr.get_code_list(1) + self.objCodeMgr.get_code_list(2)
+
+        ###########################
+        kospi = stock.get_market_ticker_list("20231125", market="KOSPI")
+
+        # 이 문자 있으면 리스트에서 제거
+        char_to_remove = 'K'
+
+        # 리스트 내에서 제거할 문자를 가진 원소를 필터링하여 제거
+        code_list = [item for item in kospi if char_to_remove not in item]
+    
+        # 코드리스트로 종목명 추출하기.
+        name_list = []
+        for code in code_list:
+            name = stock.get_market_ticker_name(code)
+            name_list.append(name)
+            
+        sv_code_df = pd.DataFrame({'종목코드': code_list,'종목명': name_list},
+                                        columns=('종목코드', '종목명'))
+
+        # 제거할 문자들을 리스트로 만듭니다.
+        chars_to_remove2 = ['KODEX', 'TIGER', 'ACE', '액티브', 'KOSEF', 'ARIRANG', '블룸버그', '합성',
+                            'SOL', '스팩', 'HANARO']
+
+        # '종목명' 열에서 각 문자열에서 chars_to_remove2에 포함된 문자열을 제거합니다.
+        for char in chars_to_remove2:
+            sv_code_df['종목명'] = sv_code_df['종목명'].str.replace(char, '')
+
+        print(sv_code_df)
+
+        sv_code_list = sv_code_df['종목코드'].tolist()
+        ###########################
+
         sv_name_list = list(map(self.objCodeMgr.get_code_name, sv_code_list))
         self.sv_code_df = pd.DataFrame({'종목코드': sv_code_list,'종목명': sv_name_list},
                                        columns=('종목코드', '종목명'))

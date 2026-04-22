@@ -1,0 +1,82 @@
+# Creon DataReader v2.0 설정 파일
+
+version: "2.0.0"
+created_at: "2026-04-22T10:00:00"
+updated_at: "2026-04-22T10:00:00"
+
+storage:
+  file_enabled: true
+  file_format: json
+  file_base_path: "./data"
+  
+  database_enabled: true
+  database_type: sqlite
+  database_path: "./data/database/creon_data.db"
+
+collection:
+  default_count: 1000
+  max_retries: 3
+  retry_delay: 1.0
+  request_delay: 0.25
+  chunk_size: 100
+  
+  validate_data: true
+  check_ohlcv_integrity: true
+  check_timestamp_order: true
+  check_for_gaps: true
+
+merge:
+  enabled: true
+  lookback_days: 3
+  auto_merge: true
+  max_gaps_to_fill: 3
+  conflict_resolution: newer_source
+  
+  validate_before_save: true
+  create_backup: true
+  backup_retention_days: 30
+
+filters:
+  price_min: 10000
+  price_max: 30000
+  exclude_etf: true
+  exclude_etn: true
+  exclude_delisted: true
+  
+  exclude_keywords:
+    - KODEX
+    - TIGER
+    - ACE
+    - 액티브
+    - KOSEF
+    - ARIRANG
+    - 블룸버그
+    - 합성
+    - SOL
+    - 스팩
+    - HANARO
+    - 메리츠
+  
+  market_types:
+    - KOSPI
+
+logging:
+  level: INFO
+  file_enabled: true
+  file_path: "./logs"
+  file_max_size: 10485760  # 10MB
+  file_backup_count: 5
+  console_enabled: true
+  
+  enable_metrics: true
+  metrics_port: 9090
+
+performance:
+  max_workers: 4
+  use_multiprocessing: false
+  memory_limit_mb: 1024
+  batch_size: 1000
+  
+  enable_cache: true
+  cache_ttl_seconds: 300
+  cache_max_size: 1000

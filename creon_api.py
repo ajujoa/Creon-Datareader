@@ -38,7 +38,7 @@ class ChartRequest:
     count: int = 1000
     from_date: Optional[int] = None  # YYYYMMDD or YYYYMMDDHHMM
     to_date: Optional[int] = None    # YYYYMMDD or YYYYMMDDHHMM
-    interval: Optional[int] = None   # 분봉 간격 (1, 5, 30, 60)
+    interval: Optional[int] = None   # 분봉 간격 (1, 3, 5, 10, 15, 30, 60)
     ohlcv_only: bool = True
     adjusted_price: bool = True
 
@@ -498,61 +498,113 @@ class CreonAPIManager:
             logger.error(f"Creon 연결 확인 실패: {e}")
             return False
     
-    def get_market_codes(self, market: str = 'KOSPI', 
+    def get_market_codes(self, market: str = 'KOSPI',
                         filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         마켓별 종목코드 리스트 반환 (필터 적용)
+        MH_creon_datareader_down_20260106.py 필터링 로직 적용
         """
         if not self._connection_checked:
             if not self.check_connection():
                 raise ConnectionError("Creon 연결 실패")
-        
-        # 기본 필터
+
         if filters is None:
             filters = {}
-        
-        # 종목코드 리스트 가져오기
+
         code_list = self.code_mgr.get_code_list(market)
-        
+
+        # 'A' 접두어 제거 후 'K' 포함 종목 제거 (MH 원본 로직)
+        filtered_codes = []
+        for code in code_list:
+            clean_code = code.replace('A', '')
+            if 'K' not in clean_code:
+                filtered_codes.append(clean_code)
+
         # 종목 정보 수집
         stocks = []
-        for code in code_list:
+        for code in filtered_codes:
             try:
-                info = self.code_mgr.get_stock_info(code)
-                
+                # 'A' 접두어 붙여서 조회 (MH 원본 로직)
+                full_code = 'A' + code
+                name = self.code_mgr.get_code_name(full_code)
+
                 # 필터 적용
-                if self._apply_filters(info, filters):
-                    stocks.append(info)
-                    
+                if self._apply_stock_filter(code, name, filters):
+                    stocks.append({
+                        'code': full_code,
+                        'clean_code': code,
+                        'name': name,
+                        'market_type': market
+                    })
+
             except Exception as e:
                 logger.warning(f"종목 정보 처리 실패: {code}, {e}")
                 continue
-        
-        logger.info(f"필터 적용 후 종목 수: {len(stocks)}/{len(code_list)}")
+
+        logger.info(f"필터 적용 후 종목 수: {len(stocks)}/{len(filtered_codes)}")
         return stocks
-    
-    def _apply_filters(self, stock_info: Dict[str, Any], filters: Dict[str, Any]) -> bool:
-        """필터 적용"""
+
+    def _apply_stock_filter(self, code: str, name: str, filters: Dict[str, Any]) -> bool:
+        """
+        종목 필터 적용 (MH_creon_datareader_down_20260106.py 로직 기반)
+        """
+        if not name:
+            return False
+
         # ETF/ETN 제외
-        if filters.get('exclude_etf', False) and stock_info['is_etf']:
+        if filters.get('exclude_etf', False) and 'ETF' in name.upper():
             return False
-        
-        if filters.get('exclude_etn', False) and stock_info['is_etn']:
+        if filters.get('exclude_etn', False) and 'ETN' in name.upper():
             return False
-        
+
         # 상장폐지 제외
-        if filters.get('exclude_delisted', False) and stock_info['is_delisted']:
+        if filters.get('exclude_delisted', False) and not name:
             return False
-        
-        # 키워드 필터 (종목명 기준)
+
+        # 키워드 필터 (MH 원본: 정규식 str.contains('|'.join(exclude_keywords)))
         exclude_keywords = filters.get('exclude_keywords', [])
-        stock_name = stock_info['name']
-        
-        for keyword in exclude_keywords:
-            if keyword and keyword in stock_name:
+        if exclude_keywords:
+            import re
+            pattern = '|'.join(re.escape(kw) for kw in exclude_keywords if kw)
+            if pattern and re.search(pattern, name, re.IGNORECASE):
                 return False
-        
+
+        # 가격/거래대금 필터 (단일 COM 호출로 통합)
+        price_min = filters.get('price_min', 0)
+        price_max = filters.get('price_max', 0)
+        amount_min = filters.get('amount_min', 0)
+        amount_max = filters.get('amount_max', 0)
+        if price_min > 0 or price_max > 0 or amount_min > 0 or amount_max > 0:
+            try:
+                price, amount = self._get_stock_market_data('A' + code)
+                if price == 0 and amount == 0:
+                    return False
+                if price_min > 0 and price < price_min:
+                    return False
+                if price_max > 0 and price > price_max:
+                    return False
+                if amount_min > 0 and amount < amount_min:
+                    return False
+                if amount_max > 0 and amount > amount_max:
+                    return False
+            except Exception:
+                pass
+
         return True
+
+    def _get_stock_market_data(self, code: str):
+        """현재가와 거래대금을 한번의 COM 호출로 조회"""
+        try:
+            objStockMst = win32com.client.Dispatch("DsCbo1.StockMst")
+            objStockMst.SetInputValue(0, code)
+            objStockMst.BlockRequest()
+            price = objStockMst.GetHeaderValue(11)
+            volume = objStockMst.GetHeaderValue(18)
+            amount = (volume * price) // 1000000
+            return price, amount
+        except Exception as e:
+            logger.warning(f"시세 데이터 조회 실패: {code}, {e}")
+            return 0, 0
     
     def get_daily_data(self, code: str, **kwargs) -> ChartData:
         """일봉 데이터 가져오기"""

@@ -294,20 +294,27 @@ class CreonDataReader:
     
     def collect_market_data(self, market: str = 'KOSPI', chart_type: str = 'daily',
                            interval: Optional[int] = None, max_stocks: Optional[int] = None,
-                           merge: bool = True) -> List[CollectionResult]:
+                           merge: bool = True, count: Optional[int] = None,
+                           filters: Optional[Dict[str, Any]] = None) -> List[CollectionResult]:
         """
         마켓 전체 데이터 수집
+        filters 파라미터가 없으면 설정 파일에서 읽음 (MH_creon_datareader_down_20260106.py 필터링 로직 적용)
         """
         results = []
         
         try:
             # 종목 목록 가져오기
-            filters = {
-                'exclude_etf': self.config.get('filters.exclude_etf', True),
-                'exclude_etn': self.config.get('filters.exclude_etn', True),
-                'exclude_delisted': self.config.get('filters.exclude_delisted', True),
-                'exclude_keywords': self.config.get('filters.exclude_keywords', [])
-            }
+            if filters is None:
+                filters = {
+                    'exclude_etf': self.config.get('filters.exclude_etf', True),
+                    'exclude_etn': self.config.get('filters.exclude_etn', True),
+                    'exclude_delisted': self.config.get('filters.exclude_delisted', True),
+                    'exclude_keywords': self.config.get('filters.exclude_keywords', []),
+                    'price_min': self.config.get('filters.price_min', 0),
+                    'price_max': self.config.get('filters.price_max', 0),
+                    'amount_min': self.config.get('filters.amount_min', 0),
+                    'amount_max': self.config.get('filters.amount_max', 0)
+                }
             
             stocks = self.api.get_market_codes(market, filters)
             
@@ -315,42 +322,36 @@ class CreonDataReader:
                 stocks = stocks[:max_stocks]
             
             total_stocks = len(stocks)
-            self._update_progress(f"마켓 데이터 수집 시작: {market}, 종목 수: {total_stocks}")
+            print(f"\n[종목] 전체: {total_stocks}개")
             
             # 병렬 처리 설정
             max_workers = self.config.get('performance.max_workers', 4)
             use_multiprocessing = self.config.get('performance.use_multiprocessing', False)
             
+            success_count = 0
+            total_data = 0
+            
             if use_multiprocessing and max_workers > 1:
-                # 멀티프로세싱 처리
                 results = self._collect_parallel(stocks, chart_type, interval, merge, max_workers)
+                success_count = sum(1 for r in results if r.success)
+                total_data = sum(r.data_count for r in results if r.success)
             else:
-                # 단일 스레드 처리
                 for i, stock_info in enumerate(stocks):
                     stock_code = stock_info['code']
+                    stock_name = stock_info.get('name', stock_code)
                     
-                    # 진행 상황 업데이트
-                    progress = (i + 1) / total_stocks * 100
-                    self._update_progress(
-                        f"처리 중: {i+1}/{total_stocks} ({progress:.1f}%) - {stock_code}",
-                        progress
-                    )
-                    
-                    # 데이터 수집
-                    result = self.collect_stock_data(stock_code, chart_type, interval, merge=merge)
+                    result = self.collect_stock_data(stock_code, chart_type, interval, count=count, merge=merge)
                     results.append(result)
                     
-                    # 실패한 경우 로그 기록
-                    if not result.success:
-                        logger.warning(f"종목 수집 실패: {stock_code}, 이유: {result.error_message}")
+                    if result.success:
+                        success_count += 1
+                        total_data += result.data_count
+                    
+                    # 한 줄 진행률: 전체/완료/비율 + 현재 종목명
+                    pct = (i + 1) / total_stocks * 100
+                    print(f"\r[진행] {i+1}/{total_stocks} ({pct:.1f}%) | 성공 {success_count} | 현재: {stock_name}    ", end='', flush=True)
             
-            # 결과 통계
-            success_count = sum(1 for r in results if r.success)
-            total_data = sum(r.data_count for r in results if r.success)
-            
-            self._update_progress(
-                f"마켓 데이터 수집 완료: 성공 {success_count}/{total_stocks}, 총 데이터 {total_data}개"
-            )
+            print()
             
         except Exception as e:
             logger.error(f"마켓 데이터 수집 실패: {market}, {e}")
@@ -371,6 +372,7 @@ class CreonDataReader:
                     self.collect_stock_data,
                     stock_code, chart_type, interval, None, merge
                 )
+                # count는 merge_strategy에 포함되므로 생략
                 future_to_stock[future] = stock_code
             
             # 결과 수집

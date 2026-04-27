@@ -168,6 +168,9 @@ class CreonDatabaseExtended(CreonDatabase):
             for i in range(len(datetimes)):
                 try:
                     datetime_val = datetimes[i]
+                    # datetime이 8자리(YYYYMMDD)면 12자리(YYYYMMDDHHMM)로 변환
+                    if datetime_val < 10000000000:
+                        datetime_val = datetime_val * 10000
                     date_val = datetime_val // 10000  # YYYYMMDD 추출
                     
                     cursor.execute("""

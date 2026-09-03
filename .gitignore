@@ -3,8 +3,41 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# data files
-db/
+# Virtual environment
+venv_creon32/
+venv/
+.venv/
+
+# Config with credentials
+creon_config.ini
+config/creon_config.ini
+
+# Data directories
+json_data/
+logs/
 old/
-/json_data
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Market data (분봉/일봉 등) — 커밋 제외
+data/
+
+# CodeGraph index
+.codegraph/
+
+# Python installer
 *.exe
+
+# Original repo backup (duplicate, has own .git)
+Creon-Datareader_원본/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,29 @@
+# Creon DataReader MH - 필수 패키지
+# Windows 32bit Python 3.8+ 환경 기준
+
+# Creon Plus API 통신 (32bit 전용)
+pywin32>=300
+psutil>=5.0
+
+# 데이터 처리
+pandas>=1.0
+numpy>=1.19
+
+# 한국 주식 데이터
+pykrx>=1.0
+finance-datareader>=1.0
+
+# 거래일 캘린더
+exchange-calendars>=4.0
+
+# 진행률 표시
+tqdm>=4.0
+
+# 데이터 시각화 (옵션)
+matplotlib>=3.0
+
+# pandas Excel 관련
+openpyxl>=3.0
+
+# MariaDB 직접 연결 (Win11 → 2pc)
+pymysql>=1.0

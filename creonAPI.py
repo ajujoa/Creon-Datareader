@@ -89,7 +89,7 @@ class CpStockChart:
         while count > rcv_count:
             self.objStockChart.BlockRequest()  # 요청! 후 응답 대기
             self._check_rq_status()  # 통신상태 검사
-            time.sleep(0.25)  # 시간당 RQ 제한으로 인해 장애가 발생하지 않도록 딜레이를 줌
+            time.sleep(0.3)  # 15초/60건 제한 대응 (종목 간 delay와 통일)
 
             rcv_batch_len = self.objStockChart.GetHeaderValue(3)  # 받아온 데이터 개수
             rcv_batch_len = min(rcv_batch_len, count - rcv_count)  # 정확히 count 개수만큼 받기 위함
@@ -98,7 +98,8 @@ class CpStockChart:
                     rcv_data[col].append(self.objStockChart.GetDataValue(col_idx, i))
 
             if len(rcv_data['date']) == 0:  # 데이터가 없는 경우
-                print(code, '데이터 없음')
+                msg = "최신 (변경 없음)" if from_date != 0 else "신규 (Creon에도 없음)"
+                print(code, msg)
                 return False
 
             # rcv_batch_len 만큼 받은 데이터의 가장 오래된 date
@@ -121,18 +122,25 @@ class CpStockChart:
 
     # 차트 요청 - 분간, 틱 차트
     @check_PLUS_status
-    def RequestMT(self, code, dwm, tick_range, count, caller: 'MainWindow', from_date=0, ohlcv_only=True):
+    def RequestMT(self, code, dwm, tick_range, count, caller: 'MainWindow', from_date=0, to_date=0, ohlcv_only=True):
         """
         :param code: 종목 코드
         :param dwm: 'm':분봉, 'T':틱봉
         :param tick_range: 1분봉 or 5분봉, ...
         :param count: 요청할 데이터 개수
         :param caller: 이 메소드 호출한 인스턴스. 결과 데이터를 caller의 멤버로 전달하기 위함
+        :param from_date: BY_DATE 시작일 (YYYYMMDD, 0이면 BY_COUNT)
+        :param to_date: BY_DATE 종료일 (YYYYMMDD, 0이면 from_date 사용)
         :return:
         """
         self.objStockChart.SetInputValue(0, code)  # 종목코드
-        self.objStockChart.SetInputValue(1, ord('2'))  # 개수로 받기
-        self.objStockChart.SetInputValue(4, count)  # 조회 개수
+        if from_date and to_date:
+            self.objStockChart.SetInputValue(1, ord('1'))  # 기간으로 받기
+            self.objStockChart.SetInputValue(2, to_date)   # 종료일
+            self.objStockChart.SetInputValue(3, from_date) # 시작일
+        else:
+            self.objStockChart.SetInputValue(1, ord('2'))  # 개수로 받기
+            self.objStockChart.SetInputValue(4, count)  # 조회 개수
         if ohlcv_only:
             self.objStockChart.SetInputValue(5, [0, 1, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간,시가,고가,저가,종가,거래량
             rq_column = ('date', 'time', 'open', 'high', 'low', 'close', 'volume')
@@ -168,7 +176,7 @@ class CpStockChart:
         while count > rcv_count:
             self.objStockChart.BlockRequest()  # 요청! 후 응답 대기
             self._check_rq_status()  # 통신상태 검사
-            time.sleep(0.25)  # 시간당 RQ 제한으로 인해 장애가 발생하지 않도록 딜레이를 줌
+            time.sleep(0.3)  # 15초/60건 제한 대응 (종목 간 delay와 통일)
 
             rcv_batch_len = self.objStockChart.GetHeaderValue(3)  # 받아온 데이터 개수
             rcv_batch_len = min(rcv_batch_len, count - rcv_count)  # 정확히 count 개수만큼 받기 위함
@@ -177,7 +185,8 @@ class CpStockChart:
                     rcv_data[col].append(self.objStockChart.GetDataValue(col_idx, i))
 
             if len(rcv_data['date']) == 0:  # 데이터가 없는 경우
-                print(code, '데이터 없음')
+                msg = "최신 (변경 없음)" if from_date != 0 else "신규 (Creon에도 없음)"
+                print(code, msg)
                 return False
 
             # len 만큼 받은 데이터의 가장 오래된 date

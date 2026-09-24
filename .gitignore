@@ -8,9 +8,17 @@ venv_creon32/
 venv/
 .venv/
 
+# Embedded 32bit Python (Win11)
+python32/
+
 # Config with credentials
 creon_config.ini
 config/creon_config.ini
+
+# Hardcoded Creon ID/PW 파일 (비밀 포함)
+AHK/creon_auto_login.ahk
+AHK/creon_auto_login.ahk.bak
+tmp_login_test.py
 
 # Data directories
 json_data/

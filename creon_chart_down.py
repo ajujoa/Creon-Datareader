@@ -593,6 +593,8 @@ def main():
     finally:
         if reader:
             reader._close_db()
+        # 프로그램 종료 직전 Creon Plus 프로세스 강제 종료
+        creon_launcher.terminate_creon()
 
 
 if __name__ == "__main__":
